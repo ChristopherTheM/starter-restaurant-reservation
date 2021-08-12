@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { listReservations, listTables } from "../utils/api";
 import ErrorAlert from "../layout/ErrorAlert";
-import { previous, today, next } from "../utils/date-time";
-import { useHistory } from "react-router-dom";
-import ListTables from "../tables/ListTables";
-import ListReservations from "../reservations/ListReservations";
+import { today, next, previous, formatAsDate } from "../utils/date-time";
+import ReservationCard from "./ReservationCard";
+import TableCard from "./TableCard";
 
 /**
  * Defines the dashboard page.
@@ -11,70 +11,76 @@ import ListReservations from "../reservations/ListReservations";
  *  the date for which the user wants to view reservations.
  * @returns {JSX.Element}
  */
-function Dashboard({
-  cancelHandler,
-  date,
-  reservations,
-  setReservations,
-  reservationsError,
-  tables,
-  setTables,
-  tablesError,
-}) {
-  const history = useHistory();
+function Dashboard({ date, setDate }) {
+	const [reservations, setReservations] = useState([]);
+	const [tables, setTables] = useState([]);
+	const [reservationsError, setReservationsError] = useState(null);
+	const [tablesError, setTablesError] = useState(null);
 
-  return (
-    <main>
-      <h1>Dashboard</h1>
-      <div className="d-md-flex mb-3">
-        <h4 className="mb-0">Reservations for {date}</h4>
-      </div>
-      {/*//////////// PREVIOUS //////////////*/}
-      <button
-        className="btn btn-info m-1 p-3"
-        onClick={() => history.push(`/dashboard?date=${previous(date)}`)}
-      >
-        Previous
-      </button>
+	useEffect(loadDashboard, [date]);
 
-      {/*//////////// TODAY //////////////*/}
-      <button
-        className="btn btn-dark m-1 p-3"
-        onClick={() => history.push(`/dashboard?date=${today()}`)}
-      >
-        Today
-      </button>
+	function loadDashboard() {
+		const abortController = new AbortController();
+		setReservationsError(null);
+		listReservations({ date }, abortController.signal)
+			.then(setReservations)
+			.catch(setReservationsError);
+		listTables(abortController.signal).then(setTables).catch(setTablesError);
+		return () => abortController.abort();
+	}
 
-      {/*//////////// NEXT //////////////*/}
-      <button
-        className="btn btn-info m-1 p-3"
-        onClick={() => history.push(`/dashboard?date=${next(date)}`)}
-      >
-        Next
-      </button>
+	return (
+		<main>
+			<div className="dashboard">
+				<h1 className="date">Reservations for {formatAsDate(date)}</h1>
+			</div>
+			<div className="row">
+				<div className="reservation-list col-6">
+					<h3 className="list-title">Reservations</h3>
+					{reservations.map((reservation) => (
+						<ReservationCard
+							key={reservation.reservation_id}
+							reservation={reservation}
+						/>
+					))}
+				</div>
 
-      {/*////////// DISPLAY COMPONENTS CALLS //////////*/}
+				<div className="tables-list col-6">
+					<h3 className="list-title">Tables</h3>
+					{tables.map((table) => (
+						<TableCard key={table.table_id} table={table} />
+					))}
+				</div>
+			</div>
 
-      <ErrorAlert error={reservationsError} />
+			<div className="date-selector-btns">
+				<button
+					onClick={() => setDate(previous(date))}
+					type="button"
+					className="date-btn btn-dark"
+				>
+					Prev
+				</button>
+				<button
+					onClick={() => setDate(today())}
+					type="button"
+					className="date-btn btn-primary"
+				>
+					Today
+				</button>
+				<button
+					onClick={() => setDate(next(date))}
+					type="button"
+					className="date-btn btn-dark"
+				>
+					Next
+				</button>
+			</div>
 
-      <ListReservations
-        reservations={reservations}
-        setReservations={setReservations}
-        cancelHandler={cancelHandler}
-      />
-
-      <h4 className="mb-0">Tables</h4>
-
-      <ErrorAlert error={tablesError} />
-
-      <ListTables
-        tables={tables}
-        setTables={setTables}
-        date={date}
-        setReservations={setReservations}
-      />
-    </main>
-  );
+			<ErrorAlert error={reservationsError} />
+			<ErrorAlert error={tablesError} />
+		</main>
+	);
 }
 
 export default Dashboard;
